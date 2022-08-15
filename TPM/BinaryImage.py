@@ -141,7 +141,7 @@ class BinaryImage:
         path_folder = self.path_folder
         tracking_results_select = self.get_aoi_from_tracking_results(tracking_results, selected_aoi)
         imageN = self.__readGlimpseN(frame_i, N=N)
-        fourcc = cv2.VideoWriter_fourcc(*'H264')
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         output_movie = cv2.VideoWriter(os.path.abspath(path_folder) + f'/{self.random_string}-fitting2.mp4', fourcc, 5.0, (1200, 800))
         i=0
         for image, tracking_result_select in zip(imageN, tracking_results_select):
@@ -332,7 +332,7 @@ class BinaryImage:
     ##  remove high intensity aoi
     def removewhite(self, cX, cY, amplitude, whitelevel=150):
         amplitude = np.array(amplitude)
-        index = amplitude <= whitelevel ## get amplitude >= blacklevel
+        index = amplitude <= whitelevel ## get amplitude <= whitelevel
         cX = cX[index]
         cY = cY[index]
         amplitude = amplitude[index]
@@ -709,3 +709,9 @@ class BinaryImage:
     #                 else:
     #                     print_finish(i, i+n, N)
     #     return result, r
+    # def Drift_Correction():
+
+# TODO: add low pass filter, to filter the noise pixel( sx_sy = 0.25)
+# TODO: add drift correction
+# TODO: git to cytsai2001
+

@@ -17,35 +17,35 @@ from basic.select import select_folder
 from basic.decorator import timing
 
 ### parameters for localization
-frame_read_forcenter = 9500  # no need to change, frame to autocenter beads
-N_loc = 10  # number of frame to stack and localization
-contrast = 3
+frame_read_forcenter = 10   # no need to change, frame to autocenter beads
+N_loc = 4  # number of frame to stack and localization
+contrast = 10
 
 put_text = True
-criteria_dist = 10  # beabs are closer than 'criteria_dist' will remove
-aoi_size = 20
-blacklevel = 40
+aoi_size = 30   # 16 for 3281bp, 12 for 1895bp, QD
+criteria_dist = 10  # beads are closer than 'criteria_dist' will remove
+blacklevel = 20
 whitelevel = 200
-low = 40
-high = 120
+low = 100
+high = 100
 
 ### parameters for tracking
-read_mode = 0 # mode = 0 is only calculate 'frame_setread_num' frame, other numbers(default) present calculate whole glimpsefile
+read_mode = 1 # mode = 0 is only calculate 'frame_setread_num' frame, other numbers(default) present calculate whole glimpsefile
 frame_setread_num = 50 # only useful when mode = 0, can't exceed frame number of a file
 frame_start = 0 ## starting frame for tracking
 
 @timing
 def localization(path_folder, read_mode, frame_setread_num, frame_start, criteria_dist,
-                 aoi_size, frame_read_forcenter,N_loc, contrast, low, high,
+                 aoi_size, frame_read_forcenter, N_loc, contrast, low, high,
                  blacklevel, whitelevel, put_text):
 
     ### Localization
     Glimpse_data = BinaryImage(path_folder, read_mode=read_mode, frame_setread_num=frame_setread_num,
-                               frame_start=frame_start,criteria_dist=criteria_dist, aoi_size=aoi_size,
-                                frame_read_forcenter=frame_read_forcenter,N_loc=N_loc, contrast=contrast,
-                                low=low, high=high,blacklevel=blacklevel,whitelevel=whitelevel,
+                               frame_start=frame_start, criteria_dist=criteria_dist, aoi_size=aoi_size,
+                                frame_read_forcenter=frame_read_forcenter, N_loc=N_loc, contrast=contrast,
+                                low=low, high=high, blacklevel=blacklevel, whitelevel=whitelevel,
                                )
-    bead_radius, random_string = Glimpse_data.Localize(put_text=put_text) # localize beads
+    bead_radius, random_string = Glimpse_data.Localize(put_text=put_text)   # localize beads
 
     return Glimpse_data, bead_radius, random_string
 

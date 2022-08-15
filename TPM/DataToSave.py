@@ -11,10 +11,18 @@ import pandas as pd
 ### Use for data saving and data reshaping
 class DataToSave:
     # data: np.array, path_folder: string path
-    def __init__(self, data, localization_results, path_folder, frame_start, med_fps, window, factor_p2n, BM_lower=30, BM_upper=100, random_string=''):
+    def __init__(self, data, localization_results, path_folder,
+                 frame_start, med_fps, window, factor_p2n,
+                 BM_lower=30, BM_upper=100, ratio_lower=0.8, ratio_upper=1.2, sx_sy_lower=5, sx_sy_upper=20,
+                 criteria_mode='QD', random_string=''):
         self.med_fps = med_fps
         self.BM_lower = BM_lower
         self.BM_upper = BM_upper
+        self.ratio_lower = ratio_lower
+        self.ratio_upper = ratio_upper
+        self.sx_sy_lower = sx_sy_lower
+        self.sx_sy_upper = sx_sy_upper
+        self.criteria_mode = criteria_mode
         self.columns = self.__get_df_sheet_names()
         self.localization_results = localization_results
         self.df = pd.DataFrame(data=data, columns=self.columns)
@@ -110,18 +118,32 @@ class DataToSave:
     def get_criteria(self, df_reshape_analyzed):
         BM_lower = self.BM_lower
         BM_upper = self.BM_upper
+        ratio_lower = self.ratio_lower
+        ratio_upper = self.ratio_upper
+        sx_sy_lower = self.sx_sy_lower
+        sx_sy_upper = self.sx_sy_upper
+        criteria_mode = self.criteria_mode
         ratio = df_reshape_analyzed['med_attrs'][['xy_ratio_sliding', 'xy_ratio_fixing', 'sx_over_sy_squared']]
         BMx_med = df_reshape_analyzed['med_attrs']['BMx_sliding']
+        sx_sy_med = df_reshape_analyzed['med_attrs']['sx_sy']
         ratio = np.nan_to_num(ratio)
         BMx_med = np.array(BMx_med).reshape((BMx_med.shape[0], 1))
-        c_ratio = ((ratio > 0.80) & (ratio < 1.2))
+        sx_sy_med = np.array(sx_sy_med).reshape((sx_sy_med.shape[0], 1))
+        c_ratio = ((ratio > ratio_lower) & (ratio < ratio_upper))
         c_BM = (BMx_med > BM_lower) & (BMx_med < BM_upper)
-        c = np.append(c_ratio, c_BM, axis=1)
+        c_sx_sy = (sx_sy_med > sx_sy_lower) & (sx_sy_med < sx_sy_upper)
+        if criteria_mode == 'QD':
+            c = np.append(np.append(c_ratio, c_BM, axis=1), c_sx_sy, axis=1)
+        else:
+            c = np.append(c_ratio, c_BM, axis=1)
+
         criteria = []
         for row_boolean in c:
             criteria += [all(row_boolean)]
 
         return np.array(criteria)
+
+
 
     ## get anaylyzed data, BM, sxsy,xy ratio...
     def get_analyzed_data(self, df_reshape, window, med_fps, factor_p2n):
@@ -210,7 +232,7 @@ class DataToSave:
     def __calBM_1D(self, data, window=20, factor_p2n=10000/180, method='sliding'):
         time = self.time
         if method == 'sliding':  # overlapping
-            iteration = len(data) - window + 1  # silding window
+            iteration = len(data) - window + 1  # sliding window
             BM_s = []
             for i in range(iteration):
                 data_pre = data[i: i + window]
