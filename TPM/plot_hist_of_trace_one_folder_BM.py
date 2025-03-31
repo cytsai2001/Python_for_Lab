@@ -106,14 +106,14 @@ def get_data_from_excel(path_folder, sheet_names, excel_name, axis):
 excel_name = 'fitresults_reshape_analyzed.xlsx'
 #
 path_folder = select_folder()
-df_attrs_dict = get_data_from_excel(path_folder, sheet_names=['med_attrs', 'std_attrs', 'avg_attrs'],
+df_attrs_dict = get_data_from_excel(path_folder, sheet_names=['BMx_sliding'],
                                     excel_name=excel_name, axis=0)
 df_analyzed_dict = get_data_from_excel(path_folder, sheet_names=get_analyzed_sheet_names(), excel_name=excel_name,
                                        axis=1)
 
 ##  select statistical attributes for clustering analysis
-select_columns = ['BMx_sliding', 'BMy_sliding', 'BMx_fixing', 'BMy_fixing', 'sx_sy']
-sheet_names = ['med_attrs', 'std_attrs', 'avg_attrs']
+select_columns = ['BMx_sliding_48']
+sheet_names = ['BMx_sliding']
 df_select_attrs_dict = dict()
 df_select_attrs_nor_dict = dict()
 for sheet_name in sheet_names:
@@ -124,8 +124,8 @@ for sheet_name in sheet_names:
                                                              index=df_select.index)
 
 ##  clustering
-data = df_select_attrs_nor_dict['med_attrs']
-pca = PCA(n_components=2)
+data = df_select_attrs_nor_dict['BMx_sliding']
+pca = PCA(n_components=1)
 result = pca.fit(data)
 transform = result.transform(data)
 X = transform
@@ -159,33 +159,33 @@ model.fit(X)
 ##  assign a cluster to each example
 label = model.predict(X)
 
-beads_name = df_attrs_dict['med_attrs']['Unnamed: 0']
+beads_name = 'BMx_sliding_48'
 # sx_sy = df_select_attrs_dict['med_attrs']['sx_sy']
-sx_sy = df_select_attrs_dict['med_attrs']['BMx_sliding']
-S = [sx_sy[label == i] for i in range(n_components)]
-S_name = [beads_name[label == i] for i in range(n_components)]
-df_S_dict = dict()
-
-for i, s in enumerate(S):
-    df_S_dict[f'{i}'] = pd.DataFrame(data=s).set_index(S_name[i])
-S_n_samples = [len(x) for x in S]
-S_mean = [np.mean(x) for x in S]
-S_std = [np.std(x, ddof=1) for x in S]
-S_stat = np.array([S_n_samples, S_mean, S_std])
-columns_stat = [f'DNA_{i}' for i in range(n_components)]
-index_stat = ['n_samples', 'mean', 'std']
-df_S_stat = pd.DataFrame(data=S_stat, index=index_stat, columns=columns_stat)
-
-##  select analyzed data for saving
-filename_time = get_date()
+sx_sy = df_select_attrs_dict['BMx_sliding']['BMx_sliding_48']
+# S = [sx_sy[label == i] for i in range(n_components)]
+# S_name = [beads_name[label == i] for i in range(n_components)]
+# df_S_dict = dict()
+#
+# for i, s in enumerate(S):
+#     df_S_dict[f'{i}'] = pd.DataFrame(data=s).set_index(S_name[i])
+# S_n_samples = [len(x) for x in S]
+# S_mean = [np.mean(x) for x in S]
+# S_std = [np.std(x, ddof=1) for x in S]
+# S_stat = np.array([S_n_samples, S_mean, S_std])
+# columns_stat = [f'DNA_{i}' for i in range(n_components)]
+# index_stat = ['n_samples', 'mean', 'std']
+# df_S_stat = pd.DataFrame(data=S_stat, index=index_stat, columns=columns_stat)
+#
+# ##  select analyzed data for saving
+# filename_time = get_date()
 random_string = gen_random_code(3)
-filename = 'statistics.xlsx'
-sheet_names = [f'DNA_{i}' for i in range(n_components)]
-writer = pd.ExcelWriter(os.path.join(path_folder, f'{filename_time}-{random_string}-{filename}'))
-df_S_stat.to_excel(writer, sheet_name='statistics', index=True)
-for i, sheet_name in enumerate(sheet_names):
-    df_S_dict[f'{i}'].to_excel(writer, sheet_name=sheet_name, index=True)
-writer.save()
+# filename = 'statistics.xlsx'
+# sheet_names = [f'DNA_{i}' for i in range(n_components)]
+# writer = pd.ExcelWriter(os.path.join(path_folder, f'{filename_time}-{random_string}-{filename}'))
+# df_S_stat.to_excel(writer, sheet_name='statistics', index=True)
+# for i, sheet_name in enumerate(sheet_names):
+#     df_S_dict[f'{i}'].to_excel(writer, sheet_name=sheet_name, index=True)
+# writer.save()
 
 # ##  plot histogram of sx_sy
 # mean = model.fit(X).means_
@@ -213,7 +213,7 @@ writer.save()
 # plt.subplots_adjust(wspace=0.3)
 # plt.show()
 plt.hist(sx_sy, bins=100, range=(0, 150), density=True)
-plt.xlabel('BMx (pixel)')
+plt.xlabel('BMx (nm)')
 plt.ylabel('Frequency')
 plt.xlim(0, 150)
 plt.savefig(os.path.join(path_folder, random_string + '-BMx_histogram.png'))

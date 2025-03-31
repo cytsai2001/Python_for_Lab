@@ -18,6 +18,8 @@ import random
 import string
 
 
+
+
 ###  2-D Gaussian function with rotation angle
 def twoD_Gaussian(xy, amplitude, sigma_x, sigma_y, xo, yo, theta_deg, offset):
     xo = float(xo)
@@ -76,7 +78,15 @@ class BinaryImage:
         image = self.image
         image = self.__enhance_contrast(image, self.contrast)
         contours = self.getContour(image, self.low, self.high)
+        # image_0 = image
         cX, cY = self.getXY(contours)
+        # image_0 = self.__drawAOI(image_0, cX, cY, self.aoi_size, put_text=put_text)
+        # self.__show_grayimage(image_0, save=False)
+        # while bool(input("add beads? (Y or N)") == "Y"):
+        #     image_i = self.__drawAOI(image_0, cX, cY, self.aoi_size, put_text=put_text)
+        #     self.__show_grayimage(image_i, save=False)
+        #     np.append(cX, float(input("add cX")))
+        #     np.append(cY, float(input("add cY")))
 
         ##  need to sort according to X first and select
         for i in range(2):
@@ -87,12 +97,13 @@ class BinaryImage:
 
         self.bead_number = len(cX)
         image = self.__drawAOI(image, cX, cY, self.aoi_size, put_text=put_text)
-        self.__show_grayimage(image, save=True)
+        # self.__show_grayimage(image, save=True)
+        image, cX, cY = self.__show_grayimage_add_aoi(image, cX, cY, save=True, aoi_size=self.aoi_size, put_text=put_text)
         self.cX = cX
         self.cY = cY
         self.image = image
         print('finish centering')
-        bead_radius = self.radius_save.reshape((-1,1))
+        bead_radius = self.radius_save.reshape((-1, 1))
         random_string = self.random_string
         return bead_radius, random_string
 
@@ -231,6 +242,19 @@ class BinaryImage:
         contours, hierarchy = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         self.edges = edges
         self.contours = contours
+        return contours
+
+    def get_updated_contour(self, image, cX, cY, aoi_size=20):
+        # Create a blank image for contours with the same dimensions as the original image
+        contour_image = np.zeros_like(image)
+
+        # Draw circles around each of the cX, cY points (simulating AOIs)
+        for i in range(len(cX)):
+            cv2.circle(contour_image, (int(cX[i]), int(cY[i])), aoi_size, 255, -1)
+
+        # Use OpenCV to detect contours on the new updated image
+        contours, _ = cv2.findContours(contour_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
         return contours
 
     ##  get center point using moment of edge
@@ -380,9 +404,47 @@ class BinaryImage:
         fig, ax = plt.subplots()
         # plt.figure()
         ax.imshow(image, cmap='gray', vmin=0, vmax=255)
-        pylab.show()
+        plt.show()
         if save == True:
             cv2.imwrite(os.path.join(self.path_folder, random_string + '-output.png'), image)
+
+
+    def __show_grayimage_add_aoi(self, image, cX, cY, save=True, aoi_size=20, put_text=True):
+        random_string = self.random_string
+        plt.ion()
+        fig, ax = plt.subplots()
+        # plt.figure()
+        ax.imshow(image, cmap='gray', vmin=0, vmax=255)
+
+
+        def onclick(event):
+            pos.append([event.xdata, event.ydata])
+            print("Selected positions:", pos)
+
+        pos = []
+        cid = fig.canvas.mpl_connect('button_press_event', onclick)
+        plt.show(block=True)
+        cX = np.append(cX, [i[0] for i in pos])
+        cY = np.append(cY, [i[1] for i in pos])
+        self.radius_save = np.append(self.radius_save, [float(i-i+np.mean(self.radius_save)) for i in range(len(pos))])
+
+        for i in range(2):
+            # cX, cY = self.__sortXY(cX, cY)
+            # cX, cY = self.select_XY(cX, cY, self.criteria_dist)
+            cX, cY, amplitude = self.get_accurate_xy(image, cX, cY)
+            # cX, cY, amplitude = self.removeblack(cX, cY, amplitude, self.blacklevel)
+
+        image = self.image
+        n = len(cX)
+        for i in range(n):
+            cv2.circle(image, (int(cX[i]), int(cY[i])), aoi_size, (255, 255, 255), 1)
+            if put_text == True:
+                cv2.putText(image, str(i), (int(cX[i] + aoi_size / 2), int(cY[i] + aoi_size / 2))
+                            , cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1, cv2.LINE_AA)
+        if save == True:
+            cv2.imwrite(os.path.join(self.path_folder, random_string + '-output.png'), image)
+
+        return image, cX, cY
 
     ##  add 2n-word random texts(n-word number and n-word letter)
     def __gen_random_code(self, n):
@@ -457,9 +519,14 @@ class BinaryImage:
     def __get_guess(self, image_tofit):
         aoi_size = self.aoi_size
         background = self.background
-        amp_guess = np.max(image_tofit) - background
-        x_guess = np.argmax(image_tofit) % aoi_size
-        y_guess = np.argmax(image_tofit) // aoi_size
+        try:
+            amp_guess = np.max(image_tofit) - background
+            x_guess = np.argmax(image_tofit) % aoi_size
+            y_guess = np.argmax(image_tofit) // aoi_size
+        except ValueError:
+            amp_guess = 0
+            x_guess = 0
+            y_guess = 0
         initial_guess = [amp_guess, 2.5, 2.5, x_guess, y_guess, 0, background]
         return initial_guess
 
@@ -590,10 +657,72 @@ class BinaryImage:
                 a = 0
                 b += 1
         return offset, fileNumber
+
+
+    ## add new beads
+    def add_new_beads(self):
+        print("Click on the image to add new beads. Close the figure when done.")
+        plt.ion()
+        fig, ax = plt.subplots()
+        ax.imshow(self.image, cmap='gray', vmin=0, vmax=255)
+        
+        # Draw existing beads
+        for i in range(len(self.cX)):
+            cv2.circle(self.image, (int(self.cX[i]), int(self.cY[i])), self.aoi_size, (255, 255, 255), 1)
+            cv2.putText(self.image, str(i), (int(self.cX[i] + self.aoi_size/2), int(self.cY[i] + self.aoi_size/2)),
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1, cv2.LINE_AA)
+
+        def onclick(event):
+            if event.xdata is not None and event.ydata is not None:
+                pos.append([event.xdata, event.ydata])
+                print(f"Added new bead at position: ({event.xdata:.1f}, {event.ydata:.1f})")
+                # Redraw the image with all beads
+                ax.clear()
+                ax.imshow(self.image, cmap='gray', vmin=0, vmax=255)
+                for i in range(len(self.cX)):
+                    cv2.circle(self.image, (int(self.cX[i]), int(self.cY[i])), self.aoi_size, (255, 255, 255), 1)
+                    cv2.putText(self.image, str(i), (int(self.cX[i] + self.aoi_size/2), int(self.cY[i] + self.aoi_size/2)),
+                               cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1, cv2.LINE_AA)
+                for i, p in enumerate(pos):
+                    cv2.circle(self.image, (int(p[0]), int(p[1])), self.aoi_size, (255, 255, 255), 1)
+                    cv2.putText(self.image, f"new_{i}", (int(p[0] + self.aoi_size/2), int(p[1] + self.aoi_size/2)),
+                               cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1, cv2.LINE_AA)
+                plt.draw()
+
+        pos = []
+        cid = fig.canvas.mpl_connect('button_press_event', onclick)
+        plt.show(block=True)
+        
+        if pos:
+            # Add new beads to existing ones
+            new_cX = np.append(self.cX, [p[0] for p in pos])
+            new_cY = np.append(self.cY, [p[1] for p in pos])
+            
+            # Add placeholder radius values for new beads
+            new_radius = np.append(self.radius_save, [np.mean(self.radius_save)] * len(pos))
+            
+            # Update the instance variables
+            self.cX = new_cX
+            self.cY = new_cY
+            self.radius_save = new_radius
+            
+            # Relocalize all beads to get accurate positions
+            print("Relocalizing all beads...")
+            self.cX, self.cY, amplitude = self.get_accurate_xy(self.image, self.cX, self.cY)
+            self.cX, self.cY, amplitude = self.removeblack(self.cX, self.cY, amplitude, self.blacklevel)
+            
+            # Update the image with final bead positions
+            self.image = self.__drawAOI(self.image, self.cX, self.cY, self.aoi_size, put_text=True)
+            cv2.imwrite(os.path.join(self.path_folder, self.random_string + '-output.png'), self.image)
+            
+            print(f"Successfully added {len(pos)} new beads. Total beads: {len(self.cX)}")
+        else:
+            print("No new beads were added.")
+
     ###############################################################################
 
 
-    # ###  tracking bead position in a image, get center and std of X,Y using Gaussian fit
+    # ###  tracking bead position in an image, get center and std of X,Y using Gaussian fit
     # def trackbead(image):
     #     xc = []
     #     yc = []
@@ -715,3 +844,18 @@ class BinaryImage:
 # TODO: add drift correction
 # TODO: git to cytsai2001
 
+    # ## remove beads are too close, choose two image, refer to smaller bead#
+    # def removeXY_noise_pixel(self, cX, cY, areas, criteria_area):
+    #     cX1, cY1 = np.array(cX), np.array(cY)  # len of cXr1 is smaller, as ref
+    #     i_dele_noise_pixel = np.empty(0).astype(int)
+    #     for i in range(len(cX1)):
+    #         dx = cX1 - cX1[i]
+    #         dy = cY1 - cY1[i]
+    #         dr = np.sqrt(dx ** 2 + dy ** 2)
+    #         if any(areas[areas != 0] <= criteria_area):
+    #             i_dele_noise_pixel = np.append(i_dele_noise_pixel, int(i))
+    #     cX = np.delete(cX1, i_dele_noise_pixel)
+    #     cY = np.delete(cY1, i_dele_noise_pixel)
+    #     self.radius_save = np.delete(self.radius_save, i_dele_noise_pixel)
+    #     self.saved_contours = np.delete(self.saved_contours, i_dele_noise_pixel)
+    #     return cX, cY

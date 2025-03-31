@@ -22,6 +22,7 @@ Flowchart
 ### import used modules first
 from TPM.DataToSave import DataToSave
 from TPM.localization import *
+from TPM.drift_correction import *
 
 @timing
 def Analyzing(path_folder, read_mode, frame_setread_num, frame_start, criteria_dist,
@@ -32,6 +33,8 @@ def Analyzing(path_folder, read_mode, frame_setread_num, frame_start, criteria_d
     Glimpse_data, bead_radius, random_string = localization(path_folder, read_mode, frame_setread_num, frame_start, criteria_dist,
                                              aoi_size, frame_read_forcenter, N_loc, contrast, low, high,
                                              blacklevel, whitelevel, put_text)
+    ### add new beads
+    Glimpse_data.add_new_beads()
     ### Tracking
     tracking_results = Glimpse_data.Track_All_Frames(IC=IC)
     ### Saving results
@@ -40,20 +43,20 @@ def Analyzing(path_folder, read_mode, frame_setread_num, frame_start, criteria_d
                          random_string=random_string, BM_lower=BM_lower, BM_upper=BM_upper,
                          ratio_lower=ratio_lower, ratio_upper=ratio_upper, sx_sy_lower=sx_sy_lower, sx_sy_upper=sx_sy_upper,
                          criteria_mode=criteria_mode)
-    # Save_df.save_fitresults_to_csv()
+    Save_df.save_fitresults_to_csv()
     # Save_df.save_all_dict_df_to_excel()
     # Save_df.save_selected_dict_df_to_excel()
     # Save_df.save_removed_dict_df_to_excel()
-    Save_df.Save_four_files()
+    # Save_df.Save_four_files()
     return Glimpse_data, Save_df
 
 ### parameters for tracking
 read_mode = 1 # mode = 0 is only calculate 'frame_setread_num' frame, other numbers(default) present calculate whole glimpsefile
-frame_setread_num = 2000 # only useful when mode = 0, can't exceed frame number of a file
+frame_setread_num = 100 # only useful when mode = 0, can't exceed frame number of a file
 frame_start = 0 ## starting frame for tracking
 IC = False ## default = False
-BM_lower = 30 ## default = 30
-BM_upper = 300
+BM_lower = 10 ## default = 30
+BM_upper = 250
 ratio_lower = 0.8
 ratio_upper = 1.2
 sx_sy_lower = 5
@@ -68,6 +71,8 @@ if __name__ == "__main__":
                                       aoi_size, frame_read_forcenter, N_loc, contrast, low, high,
                                       blacklevel, whitelevel, put_text, IC, BM_lower, BM_upper,
                                       ratio_lower, ratio_upper, sx_sy_lower, sx_sy_upper, criteria_mode)
+
+
 
     # ### Localization
     # Glimpse_data, bead_radius, random_string = localization(path_folder, read_mode, frame_setread_num, frame_start, criteria_dist,

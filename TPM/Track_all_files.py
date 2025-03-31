@@ -28,8 +28,8 @@ read_mode = 1 ## mode = 0 is only calculate 'frame_setread_num' frame, other num
 frame_setread_num = 1000 ## only useful when mode = 0, can't exceed frame number of a file
 frame_start = 0 ## starting frame for tracking
 IC = False ## default = False
-BM_lower = 30 ## default = 30
-BM_upper = 300
+BM_lower = 10 ## default = 30
+BM_upper = 150
 ratio_lower = 0.8
 ratio_upper = 1.2
 sx_sy_lower = 5

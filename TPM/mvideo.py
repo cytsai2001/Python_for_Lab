@@ -13,7 +13,7 @@ Flowchart
 
 2. Tracking all aoi with 2D Gaussian
 
-3. Save fitting cideo (optional)
+3. Save fitting video (optional)
 
 4. Save four files for fitting results
 
@@ -24,11 +24,11 @@ from TPM.localization import *
 from TPM.localization import select_folder
 import matplotlib.pyplot as plt
 
-selected_aoi = 15
-N = 100
+selected_aoi = 151
+N = 6000
 
-read_mode = 0  # mode = 0 is only calculate 'frame_setread_num' frame, other numbers(default) present calculate whole glimpsefile
-frame_start = 9000 ## starting frame for tracking
+read_mode = 1  # mode = 0 is only calculate 'frame_setread_num' frame, other numbers(default) present calculate whole glimpsefile
+frame_start = 0 ## starting frame for tracking
 frame_setread_num = N  # only useful when mode = 0, can't exceed frame number of a file
 
 if __name__ == "__main__":
