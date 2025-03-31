@@ -3,10 +3,15 @@
 import math
 import random
 import string
+from typing import List
 import numpy as np
 import os
 import datetime
 import pandas as pd
+import openpyxl
+from openpyxl.utils.dataframe import dataframe_to_rows
+import psutil
+
 
 ### Use for data saving and data reshaping
 class DataToSave:
@@ -23,19 +28,19 @@ class DataToSave:
         self.sx_sy_lower = sx_sy_lower
         self.sx_sy_upper = sx_sy_upper
         self.criteria_mode = criteria_mode
-        self.columns = self.__get_df_sheet_names()
+        columns = ['frame', 'aoi', 'amplitude', 'sx', 'sy', 'x', 'y', 'theta_deg', 'offset', 'intensity',
+                   'intensity_integral', 'ss_res']
         self.localization_results = localization_results
-        self.df = pd.DataFrame(data=data, columns=self.columns)
+        self.df = pd.DataFrame(data=data, columns=columns)
         self.path_folder = path_folder
-        self.sheet_names = self.__get_analyzed_sheet_names() + self.__get_reshape_sheet_names()
-        self.filename_time = self.__get_date()
-        self.bead_number = int(max(1 + self.df['aoi']))
+        self.sheet_names = self._get_analyzed_sheet_names() + self._get_reshape_sheet_names()
+        self.filename_time = datetime.datetime.today().strftime('%Y-%m-%d')  # Get current date
+        self.bead_number = int(1 + self.df['aoi'].max())
         self.frame_acquired = int(len(self.df['x']) / self.bead_number)
         self.frame_start = frame_start # starting frame for statistics
-        self.frame_n = self.frame_acquired # frame number for statistics
-        self.time = self.__get_time()[frame_start:frame_start+self.frame_n]
+        self.time = self._get_time()[frame_start:frame_start + self.frame_acquired]
         self.time_sliding, self.time_fixing = self.__get_sftime(window=window)
-        self.df_reshape = self.__get_reshape_data(self.df, med_fps)
+        self.df_reshape: dict = self._get_reshape_data()
         self.x_2D = np.array(self.df_reshape['x'])
         self.y_2D = np.array(self.df_reshape['y'])
         self.sx_2D = np.array(self.df_reshape['sx'])
@@ -59,7 +64,8 @@ class DataToSave:
         filename_time = self.filename_time
         df.to_csv(os.path.join(path_folder, f'{filename_time}-{random_string}-fitresults.csv'), index=False)
 
-    ##  save all dictionary of DataFrame to excel sheets
+
+    ##  save all dictionary of DataFrame to Excel sheets
     def save_all_dict_df_to_excel(self, title=''):
         random_string = self.random_string
         df_reshape_analyzed = self.df_reshape_analyzed
@@ -68,13 +74,39 @@ class DataToSave:
         filename = title + '-fitresults_reshape_analyzed.xlsx'
         sheet_names = self.sheet_names
 
-        writer = pd.ExcelWriter(os.path.join(path_folder, f'{filename_time}-{random_string}-{filename}'))
+        wb = openpyxl.Workbook(write_only=True)
+        print('create workbook')
+        print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2)
         for sheet_name in sheet_names:
-            df_save = df_reshape_analyzed[sheet_name]
-            df_save.to_excel(writer, sheet_name=sheet_name, index=True)
-        writer.save()
+            if sheet_name not in ['sx_sy', 'xy_ratio_sliding', 'xy_ratio_fixing', 'sx_over_sy_squared', 'amplitude', 'sx',
+                                  'sy', 'x', 'y', 'theta_deg', 'offset', 'intensity', 'intensity_integral', 'ss_res']:
+                print(sheet_name)
+                ws = wb.create_sheet(sheet_name)
+                print('sheet created')
+                print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2)
+                df_save = df_reshape_analyzed[sheet_name].reset_index()  # reset the index as a column
+                print(f'df range: {df_save.shape}, range_column: {df_save.shape[1]}')
+                print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2)
+                for r in dataframe_to_rows(df_save, index=False,
+                                           header=True):  # set index=False to exclude the index column
+                    ws.append(r)
+                print(f'{sheet_name} to ws')
+                print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2)
+        wb.save(os.path.join(path_folder, f'{filename_time}-{random_string}-{filename}'))
 
-    ##  save selected dictionary of DataFrame to excel sheets
+        # with pd.ExcelWriter(os.path.join(path_folder, f'{filename_time}-{random_string}-{filename}')) as writer:
+        #     for sheet_name in sheet_names:
+        #         if sheet_name not in ['sx_sy', 'xy_ratio_sliding', 'xy_ratio_fixing', 'sx_over_sy_squared', 'amplitude', 'sx', 'sy', 'x', 'y', 'theta_deg', 'offset', 'intensity', 'intensity_integral', 'ss_res']:
+        #             print(sheet_name)
+        #             df_save = df_reshape_analyzed[sheet_name]
+        #             print(f'{sheet_name} to df_save')
+        #             print(df_save)
+        #             df_save.to_excel(writer, sheet_name=sheet_name, index=True)
+        #             # self.to_excel_fast(df_save, filename)
+        #             print('Done')
+
+
+    ##  save selected dictionary of DataFrame to Excel sheets
     def save_selected_dict_df_to_excel(self):
         random_string = self.random_string
         df_reshape_analyzed = self.df_reshape_analyzed
@@ -92,9 +124,9 @@ class DataToSave:
             else:  # for avg_attrs and std_attrs sheets
                 df_save_selected = df_save[criteria]
             df_save_selected.to_excel(writer, sheet_name=sheet_name, index=True)
-        writer.save()
+        writer.close()
 
-    ##  save removed dictionary of DataFrame to excel sheets
+    ##  save removed dictionary of DataFrame to Excel sheets
     def save_removed_dict_df_to_excel(self):
         random_string = self.random_string
         df_reshape_analyzed = self.df_reshape_analyzed
@@ -112,7 +144,7 @@ class DataToSave:
             else:  # for avg_attrs and std_attrs sheets
                 df_save_selected = df_save[~criteria]
             df_save_selected.to_excel(writer, sheet_name=sheet_name, index=True)
-        writer.save()
+        writer.close()
 
     ##  get selection criteria
     def get_criteria(self, df_reshape_analyzed):
@@ -146,22 +178,23 @@ class DataToSave:
 
 
     ## get anaylyzed data, BM, sxsy,xy ratio...
-    def get_analyzed_data(self, df_reshape, window, med_fps, factor_p2n):
+    def get_analyzed_data(self, df_reshape, window: int, med_fps: float, factor_p2n: float):
         bead_number = self.bead_number
         analyzed_data = self.append_analyed_data(factor_p2n, med_fps, window)
-        analyzed_sheet_names = self.__get_analyzed_sheet_names()
-        df_reshape_analyzed = df_reshape.copy()
+        analyzed_sheet_names = self._get_analyzed_sheet_names()
+        df_reshape_analyzed = df_reshape
+        # df_reshape_analyzed = df_reshape.copy()
         # save data to dictionary of DataFrame
         for data, sheet_name in zip(analyzed_data, analyzed_sheet_names):
             if sheet_name == 'avg_attrs':
                 df_reshape_analyzed[sheet_name] = pd.DataFrame(data=data,
-                                                               columns=self.__get_attrs_col(name='avg_attrs')).set_index(self.__get_columns('bead', data.shape[0])[1:])
+                                                               columns=self.__get_attrs_col(name='avg_attrs')).set_index(self._get_columns('bead', data.shape[0])[1:])
             elif sheet_name == 'std_attrs' or sheet_name == 'med_attrs':
                 df_reshape_analyzed[sheet_name] = pd.DataFrame(data=data, 
-                                                               columns=self.__get_attrs_col()).set_index(self.__get_columns('bead', data.shape[0])[1:])
+                                                               columns=self.__get_attrs_col()).set_index(self._get_columns('bead', data.shape[0])[1:])
             else:
                 df_reshape_analyzed[sheet_name] = pd.DataFrame(data=data,
-                                                               columns=self.__get_columns(sheet_name, bead_number)).set_index('time')
+                                                               columns=self._get_columns(sheet_name, bead_number)).set_index('time')
         return df_reshape_analyzed
 
 
@@ -191,22 +224,17 @@ class DataToSave:
         data_std_2D = np.append(data_analyzed_std, data_reshaped_std, axis=1)
 
         analyzed_data = [BMx_sliding, BMy_sliding, BMx_fixing, BMy_fixing, sx_sy, xy_ratio[0], xy_ratio[1], xy_ratio[2]]
-        analyzed_data = self.__append_time(analyzed_data, med_fps, frame_acquired, window=20)
+        analyzed_data = self._append_time(analyzed_data, med_fps, frame_acquired, window=20)
         analyzed_data = analyzed_data + [data_med_2D, data_avg_2D, data_std_2D]
         return analyzed_data
 
     ##  get time axis for each frame
-    def __get_time(self):
-        med_fps = self.med_fps
-        path_folder = self.path_folder
-
-        path_header_time = os.path.join(path_folder, 'header-time.txt')
-        exist = os.path.exists(path_header_time)
-        if exist == True:
-            df_time = pd.read_csv(path_header_time, sep='\t')
-            time = np.array(df_time)
+    def _get_time(self):
+        path_header_time = os.path.join(self.path_folder, 'header-time.txt')
+        if os.path.exists(path_header_time):
+            time = np.loadtxt(path_header_time, skiprows=1)
         else:
-            time = np.array([i / med_fps for i in range(self.frame_acquired)])
+            time = np.array([i / self.med_fps for i in range(self.frame_acquired)])
         return time
 
     ##  get time-axis for sliding and fixing window
@@ -300,89 +328,71 @@ class DataToSave:
         data_med = []
         data_avg = []
         data_std = []
-        for i, sheet_name in enumerate(self.columns):
-            if i > 1:
-                data = np.array(df_reshape[sheet_name])
-                data_med += [np.median(data, axis=0)]
-                data_avg += [np.mean(data, axis=0)]
-                data_std += [np.std(data, axis=0, ddof=1)]
+        for sheet_name in self.df.columns:
+            if sheet_name in ['frame', 'aoi']:
+                continue
+            data = np.array(df_reshape[sheet_name])
+            data_med += [np.median(data, axis=0)]
+            data_avg += [np.mean(data, axis=0)]
+            data_std += [np.std(data, axis=0, ddof=1)]
         return np.array(data_med).T, np.array(data_avg).T, np.array(data_std).T
 
     ## get reshape data all
-    def __get_reshape_data(self, df, med_fps):
-        frame_acquired = self.frame_acquired
+    def _get_reshape_data(self):
         df_reshape = dict()
-        for i, sheet_name in enumerate(df.columns):
-            if i > 1:
-                df_reshape[sheet_name] = self.__gather_reshape_sheets(df, sheet_name, frame_acquired, med_fps)
+        for sheet_name in self.df.columns:
+            if sheet_name in ['frame', 'aoi']:
+                continue
+            data = self.df[sheet_name].values.reshape(self.frame_acquired, self.bead_number)
+            data = self._append_time([data], self.med_fps, self.frame_acquired)[0]
+            column_names = self._get_columns(sheet_name, self.bead_number)
+            df_reshape[sheet_name] = pd.DataFrame(data=data, columns=column_names).set_index('time')
         return df_reshape
 
-    ##  save each attributes to each sheets, data:2D array
-    def __gather_reshape_sheets(self, df, sheet_name, frame_acquired, med_fps):
-        bead_number = self.bead_number
-        name = self.__get_columns(sheet_name, bead_number)
-        data = self.__get_attrs(df[sheet_name], bead_number, frame_acquired)
-        data = np.array(self.__append_time([data], med_fps, frame_acquired))
-        data = np.reshape(data, (frame_acquired, bead_number + 1))
-        df_reshape = pd.DataFrame(data=data, columns=name).set_index('time')
-        return df_reshape
 
     ##  add time axis into first column, data: list of 2D array,(r,c)=(frame,bead)
-    def __append_time(self, analyzed_data, med_fps, frames_acquired, window=20):
-        time_sliding = self.time_sliding
-        time_fixing = self.time_fixing
+    def _append_time(self, analyzed_data: List[np.ndarray], med_fps, frames_acquired, window=20) -> List[np.ndarray]:
         dt = (window-1)/med_fps/2
         analyzed_append_data = []
         for data in analyzed_data:
-            if len(data) == len(time_sliding):
-                time = time_sliding
-            elif len(data) == len(time_fixing):
-                time = time_fixing
+            if len(data) == len(self.time_sliding):
+                time = self.time_sliding
+            elif len(data) == len(self.time_fixing):
+                time = self.time_fixing
             else:
                 time = dt + np.arange(0, data.shape[0]) / med_fps * math.floor(frames_acquired / data.shape[0])
             time = np.reshape(time, (-1, 1))
-            analyzed_append_data += [np.append(time, data, axis=1)]
+            analyzed_append_data.append(np.append(time, data, axis=1))
         return analyzed_append_data
 
     ##  get columns for avg_attrs, med_attrs or std_attrs
     def __get_attrs_col(self, name='med_attrs'):
-        analyzed_col = self.__get_analyzed_sheet_names()[:-3]
-        reshape_col = self.__get_reshape_sheet_names()
+        analyzed_col = self._get_analyzed_sheet_names()[:-3]
+        reshape_col = self._get_reshape_sheet_names()
         if name == 'med_attrs' or name == 'std_attrs':
             return analyzed_col + reshape_col
         else:
             return analyzed_col + reshape_col + ['bead_radius']
 
-    ### input 1D array data, output: (row, column) = (frame, bead)
-    def __get_attrs(self, data_col, bead_number, frame_acquired):
-        data_col = np.array(data_col)
-        data_col_reshape = np.reshape(data_col, (frame_acquired, bead_number))
-        return data_col_reshape
 
     ### get name and bead number to be saved, 1st col is time
-    def __get_columns(self, name, bead_number):
+    def _get_columns(self, name, bead_number):
         columns = ['time'] + [f'{name}_{i}' for i in range(bead_number)]
         return np.array(columns)
 
-    ### getting date
-    def __get_date(self):
-        filename_time = datetime.datetime.today().strftime('%Y-%m-%d')  # yy-mm-dd
-        return filename_time
+
 
     ### get analyzed sheet names, add median
-    def __get_analyzed_sheet_names(self):
+    def _get_analyzed_sheet_names(self):
         return ['BMx_sliding', 'BMy_sliding', 'BMx_fixing', 'BMy_fixing',
                 'sx_sy', 'xy_ratio_sliding', 'xy_ratio_fixing', 'sx_over_sy_squared',
                 'med_attrs', 'avg_attrs', 'std_attrs']
 
     ### get reshape sheet names
-    def __get_reshape_sheet_names(self):
+    def _get_reshape_sheet_names(self):
         return ['amplitude', 'sx', 'sy', 'x', 'y', 'theta_deg', 'offset', 'intensity', 'intensity_integral', 'ss_res']
 
-    ##  get df sheet names(tracking_results)
-    def __get_df_sheet_names(self):
-        return ['frame', 'aoi', 'amplitude', 'sx', 'sy', 'x', 'y', 'theta_deg', 'offset', 'intensity',
-                'intensity_integral', 'ss_res']
+
 
     ##  add 2n-word random texts(n-word number and n-word letter)
     def __gen_random_code(self, n):
